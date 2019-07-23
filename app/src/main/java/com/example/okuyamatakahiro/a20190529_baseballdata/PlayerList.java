@@ -2,13 +2,10 @@ package com.example.okuyamatakahiro.a20190529_baseballdata;
 
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
-import android.view.Gravity;
+import androidx.appcompat.app.AppCompatActivity;
+
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -128,7 +125,7 @@ public class PlayerList extends  AppCompatActivity{
         int league_flag=intent.getIntExtra("LEAGUE_FLAG",0);
         PlayerList.ListItem item = new ListItem();
         if(position_flag==0) {
-            BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this);
+            BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this,PlayerList.this);
 
             //batterDb.openDataBase();
             //batterDb.getWritableDatabase();
@@ -168,7 +165,7 @@ public class PlayerList extends  AppCompatActivity{
 //            list.add(item);
         }else if(position_flag==1){
 //            SELECT COUNT(*) FROM (SELECT "_rowid_",* FROM "main"."npbbatter" WHERE "チーム" LIKE '%DeNA%' ESCAPE '\' ORDER BY "打率" DESC);
-            BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this);
+            BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this,PlayerList.this);
 
             //batterDb.openDataBase();
             //batterDb.getWritableDatabase();
@@ -219,7 +216,7 @@ public class PlayerList extends  AppCompatActivity{
         //リスト項目が選択された時のイベントを追加
         lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this);
+                BaseballDbHelper batterDb = new BaseballDbHelper(PlayerList.this,PlayerList.this);
                 ArrayList<String> stats;
                 stats=batterDb.getPlayerdata(batterDb,position_flag,text.get(position));
                 String msg;

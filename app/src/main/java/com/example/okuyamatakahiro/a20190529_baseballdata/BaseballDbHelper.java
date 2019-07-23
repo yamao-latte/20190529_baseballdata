@@ -1,5 +1,8 @@
 package com.example.okuyamatakahiro.a20190529_baseballdata;
 
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.SQLException;
@@ -7,9 +10,19 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteStatement;
+import android.os.AsyncTask;
+import android.os.Handler;
 import android.provider.BaseColumns;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+
+import org.json.JSONException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -24,6 +37,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,15 +63,21 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
 
     private final Context myContext;
 
+    private Activity m_Activity;
+    private AlertDialog.Builder builder;
+    private Dialog dialog;
+
+
     /**
      * Constructor
      * Takes and keeps a reference of the passed context in order to access to the application assets and resources.
      * @param context
      */
-    public BaseballDbHelper(Context context) {
+    public BaseballDbHelper(Context context,Activity m_Activity) {
 
         super(context, DB_NAME, null, 1);
         this.myContext = context;
+        this.m_Activity=m_Activity;
         //this.DB_NAME=DBname;
     }
 
@@ -185,7 +206,9 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
 
         String line = "";
         String tableName ="npbbatter";
-        String columns = "_id, 順位, 選手名, チーム, 打率, 試合, 打席数, 打数, 安打, 本塁打, 打点, 盗塁, 四球, 死球, 三振, 犠打, 併殺打, 出塁率, 長打率, OPS";;
+        String columns = "_id, 順位, 選手名, チーム, 打率, 試合, 打席数, 打数, 安打, 本塁打, 打点, 盗塁, 四球, 死球, 三振, 犠打, 併殺打, 出塁率, 長打率, OPS";
+        //下は野地タブ
+        //_id,
         //"_id,"順位","選手名","チーム","打率","試合","打席数","打数","安打","本塁打","打点","盗塁","四球","死球","三振","犠打","併殺打","出塁率","長打率","OPS"20ko
         //"_id, 順位, 選手名, チーム, 打率, 試合, 打席数, 打数, 安打, 本塁打, 打点, 盗塁, 四球, 死球, 三振, 犠打, 併殺打, 出塁率, 長打率, OPS";
         String str1 = "INSERT INTO " + tableName + " (" + columns + ") values(";
@@ -223,7 +246,9 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
                 StringBuilder sb = new StringBuilder(str1);
                 String[] str = line.split(",");
                 sb.append("'" + str[0] + "','");
-                //sb.append("'" + str[1] + "','");
+                //sb.append("'" + str[2] + "','");
+//                int i=Integer.parseInt(str[2]);
+//                sb.append("'" + Integer.toString(i) + "','");
 
                 sb.append(str[1] + "','");
                 sb.append(str[2] + "','");
@@ -314,7 +339,10 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
                 StringBuilder sb = new StringBuilder(str1);
                 String[] str = line.split(",");
                 sb.append("'" + str[0] + "','");
+                //sb.append("'" + str[2] + "','");
                 //sb.append("'" + str[1] + "','");
+//                int i=Integer.parseInt(str[2]);
+//                sb.append("'" + Integer.toString(i) + "','");
 
                 sb.append(str[1] + "','");
                 sb.append(str[2] + "','");
@@ -347,6 +375,7 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
         }
         db.setTransactionSuccessful();
         db.endTransaction();
+        if(db != null) db.close();
 
 
 
@@ -469,15 +498,9 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
 
         selectQuery="SELECT * FROM '"+positionTable[position]+"' WHERE 選手名 LIKE '" +name+ "' ;";
 
-        //this.close();
-
-
         SQLiteDatabase db  = playdb.getReadableDatabase();
-        //
         Log.v("テスト：","haina");
-
         db.beginTransaction();
-        //
 
         Cursor cursor      = db.rawQuery(selectQuery, null);
         // Cursor cursor      = db.query("npbbatter",new String[]{"_id"},null,null,null,null,null);
@@ -501,11 +524,21 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
                     data.add(cursor.getString(cursor.getColumnIndex("与四球")));
                     data.add(new Float(cursor.getFloat(cursor.getColumnIndex("WHIP"))).toString());
                 }else{
-                    data.add( new Float(cursor.getFloat(cursor.getColumnIndex("打率"))).toString() );
+                    String stats="";
+                    Float num=new Float(cursor.getFloat(cursor.getColumnIndex("打率")));
+                    int val;
+                    val=Math.round(num*1000)%1000;
+                    //stats=new Float(cursor.getFloat(cursor.getColumnIndex("打率"))).toString();
+                    data.add( "."+Integer.toString(val) );
                     data.add(cursor.getString(cursor.getColumnIndex("本塁打")));
                     data.add(cursor.getString(cursor.getColumnIndex("打点")));
-                    data.add( new Float(cursor.getFloat(cursor.getColumnIndex("出塁率"))).toString());
-                    data.add( new Float(cursor.getFloat(cursor.getColumnIndex("長打率"))).toString());
+                    num=(new Float(cursor.getFloat(cursor.getColumnIndex("出塁率"))));
+                    val=Math.round(num*1000)%1000;
+                    data.add( "."+Integer.toString(val) );
+                    num=(new Float(cursor.getFloat(cursor.getColumnIndex("長打率"))));
+                    val=Math.round(num*1000)%1000;
+                    //data.add( new Float(cursor.getFloat(cursor.getColumnIndex("長打率"))).toString());
+                    data.add( "."+Integer.toString(val) );
                     data.add(cursor.getString(cursor.getColumnIndex("盗塁")));
                     data.add(cursor.getString(cursor.getColumnIndex("三振")));
                     data.add( new Float(cursor.getFloat(cursor.getColumnIndex("OPS"))).toString() );;
@@ -526,6 +559,188 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
         //db.close();
         return data;
     }
+    public void userUpdata(SQLiteDatabase db,Activity activity){
+        new updaterDB(activity).execute(db);
+    }
+    /*更新ボタンを押されたとき、firebaseに接続して、最新の選手情報を取得して
+      データベースをUPSERTして更新する。
+      非同期によって動かし、更新中はダイアログを表示する。
+      Firebaseにcsvファイルがあるのでそれを取り込む感じ
+    */
+    public void updatePlayerdata(BaseballDbHelper db){
+        ///////////
+        builder = new AlertDialog.Builder(m_Activity);
+        builder.setView(R.layout.progress);
+        dialog = builder.create();
+        dialog.show();
+        /////////////
+        final SQLiteDatabase ddb=db.getWritableDatabase();
+        StorageReference storageRef;
+        storageRef= FirebaseStorage.getInstance().getReference();
+
+        String tableName ="npbbatter";
+        String columns = "_id, 順位, 選手名, チーム, 打率, 試合, 打席数, 打数, 安打, 本塁打, 打点, 盗塁, 四球, 死球, 三振, 犠打, 併殺打, 出塁率, 長打率, OPS";
+        final String str1 = "INSERT OR REPLACE INTO " + tableName + " (" + columns + ") values(";
+        final String str2 = ");";
+        //テーブルの全データ削除
+        final String sqldeleteStr="DELETE FROM npbbatter";
+
+        final StorageReference fileRef=storageRef.child("npbbatter_utf8.csv");
+        final long ONE_MEGA=60000;
+
+        fileRef.getBytes(ONE_MEGA).addOnSuccessListener(new OnSuccessListener<byte[]>() {
+            @Override
+            public void onSuccess(byte[] bytes) {
+                String data=new String(bytes);
+                String[] arr=data.split("\n");
+                String res="";
+                try{
+                    /*トランザクション開始**************************************************************************/
+                    ddb.beginTransaction();
+                    try{
+                        Thread.sleep(30); //3000ミリ秒Sleepする
+                    }catch(InterruptedException e){}
+                    ddb.execSQL(sqldeleteStr);
+                    for (int i=1;i<arr.length;i++){
+
+                        Log.d("TAG",arr[i]);
+                    //arr[i]に一行分(一人分)の情報が入っている
+                    //ここからsplitで ,(カンマ) 区切りで入れることで
+                    //カラムごとのデータを取り出すことが出来る
+                        StringBuilder sb = new StringBuilder(str1);
+                        String[] str = arr[i].split(",");
+                        //sb.append("'" + str[0] + "','");
+                        sb.append("'" + str[0] + "','");
+                        sb.append(str[1] + "','");
+                        sb.append(str[2] + "','");
+                        sb.append(str[3] + "','");
+                        sb.append((str[4]) + "','");
+                        sb.append((str[5]) + "','");
+                        sb.append((str[6]) + "','");
+                        sb.append((str[7]) + "','");
+                        sb.append((str[8]) + "','");
+                        sb.append((str[9]) + "','");
+                        sb.append((str[10]) + "','");
+                        sb.append((str[11]) + "','");
+                        sb.append((str[12]) + "','");
+                        sb.append((str[13]) + "','");
+                        sb.append((str[14]) + "','");
+                        sb.append((str[15]) + "','");
+                        sb.append((str[16]) + "','");
+                        sb.append((str[17]) + "','");
+                        sb.append((str[18]) + "','");
+                        sb.append((str[19]) + "'");
+                        sb.append(str2);
+                         //Log.d("TAG",arr[i+1]);
+                        ddb.execSQL(sb.toString());
+                        //Log.d("TAG",arr[i+2]);
+
+
+                        try{
+                            Thread.sleep(30); //3000ミリ秒Sleepする
+                        }catch(InterruptedException e){}
+
+
+                    }
+                }catch (IllegalStateException e) {
+                    e.printStackTrace();
+                } finally {
+  //                  ddb.setTransactionSuccessful();
+//                    ddb.endTransaction();
+
+                }
+
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.d("Test","だめです");
+            }
+        });
+
+        tableName ="npbpitcher";
+        columns = "_id, 順位, 選手名, チーム, 防御率, 試合, 勝利, 敗北, セーブ, ホールド, 勝率, 打者, 投球回, 被安打, 被本塁打, 与四球, 与死球, 奪三振, 失点, 自責点, WHIP, DIPS";
+        final StorageReference fileRef2=storageRef.child("npbpitcher_utf8.csv");
+        final String str3 = "INSERT OR REPLACE INTO " + tableName + " (" + columns + ") values(";
+        //final long ONE_MEGA=30000;
+        //テーブルの全データ削除
+        final String sqldeleteStrP="DELETE FROM npbpitcher";
+
+
+        fileRef2.getBytes(ONE_MEGA).addOnSuccessListener(new OnSuccessListener<byte[]>() {
+            @Override
+            public void onSuccess(byte[] bytes) {
+                String data=new String(bytes);
+                String[] arr=data.split("\n");
+                String res="";
+                try{
+                    //ddb.beginTransaction();
+                    ddb.execSQL(sqldeleteStrP);
+                    for (int i=1;i<arr.length;i++){
+
+                        Log.d("TAG",arr[i]);
+                        //arr[i]に一行分(一人分)の情報が入っている
+                        //ここからsplitで ,(カンマ) 区切りで入れることで
+                        //カラムごとのデータを取り出すことが出来る
+                        StringBuilder sb = new StringBuilder(str3);
+                        String[] str = arr[i].split(",");
+                        //sb.append("'" + str[0] + "','");
+                        sb.append("'" + str[0] + "','");
+                        sb.append(str[1] + "','");
+                        sb.append(str[2] + "','");
+                        sb.append(str[3] + "','");
+                        sb.append((str[4]) + "','");
+                        sb.append((str[5]) + "','");
+                        sb.append((str[6]) + "','");
+                        sb.append((str[7]) + "','");
+                        sb.append((str[8]) + "','");
+                        sb.append((str[9]) + "','");
+                        sb.append((str[10]) + "','");
+                        sb.append((str[11]) + "','");
+                        sb.append((str[12]) + "','");
+                        sb.append((str[13]) + "','");
+                        sb.append((str[14]) + "','");
+                        sb.append((str[15]) + "','");
+                        sb.append((str[16]) + "','");
+                        sb.append((str[17]) + "','");
+                        sb.append((str[18]) + "','");
+                        sb.append((str[19]) + "','");
+                        sb.append((str[20]) + "','");
+                        sb.append((str[21]) + "'");
+                        sb.append(str2);
+                        //Log.d("TAG",arr[i+1]);
+                        ddb.execSQL(sb.toString());
+                        //Log.d("TAG",arr[i+2]);
+                        try{
+                            Thread.sleep(30); //3000ミリ秒Sleepする
+                        }catch(InterruptedException e){}
+
+
+                    }
+                }catch (IllegalStateException e) {
+                    e.printStackTrace();
+                } finally {
+                    /*トランザクション終了***********************************************************************************/
+                    ddb.setTransactionSuccessful();
+                    ddb.endTransaction();
+                    try{
+                        Thread.sleep(30); //3000ミリ秒Sleepする
+                    }catch(InterruptedException e){}
+                    if(ddb != null) ddb.close();
+
+                    dialog.dismiss();
+                }
+
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.d("Test","だめです");
+            }
+        });
+    }
+
+
 
     /**
      * CsvFileを読み込む関数
@@ -576,10 +791,75 @@ public class BaseballDbHelper extends SQLiteOpenHelper{
         return outDataArray;
     }
 
-
     // Add your public helper methods to access and get content from the database.
     // You could return cursors by doing "return myDataBase.query(....)" so it'd be easy
     // to you to create adapters for your views.
+    public class updaterDB extends AsyncTask<SQLiteDatabase,Void,Integer> {
+
+        private Activity m_Activity;
+        private AlertDialog.Builder builder;
+        private Dialog dialog;
+
+        public updaterDB(Activity activity) {
+            // 呼び出し元のアクティビティ
+            m_Activity = activity;
+            builder = new AlertDialog.Builder(m_Activity);
+            //View view = getLayoutInflater().inflate(R.layout.progress);
+            builder.setView(R.layout.progress);
+            dialog = builder.create();
+        }
+
+        @Override
+        protected Integer doInBackground(SQLiteDatabase... sqLiteDatabases) {
+            //ここにバックグラウンドで行う処理を書く
+            dialog.show();
+            BaseballDbHelper db=new BaseballDbHelper(this.m_Activity,this.m_Activity);
+            db.updatePlayerdata(db);
+            dialog.dismiss();
+            return null;
+        }
+
+        /*
+         * 実行前の事前処理
+         */
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            dialog.show();
+
+        }
+
+        @Override
+        protected void onPostExecute(Integer result) {
+
+            //ここにdoInBackground終了後に行う処理を書く
+            Log.v("AsyncTaskProgress", "onend()");
+            // プログレスダイアログを閉じる
+//        if (this.m_ProgressDialog != null && this.m_ProgressDialog.isShowing()) {
+//            this.m_ProgressDialog.dismiss();
+//        }
+//        if(result=="処理") dialog.dismiss();
+            dialog.dismiss();
+
+            Log.d("test","ok");
+            super.onPostExecute(result);
+
+        }
+        /*
+         * キャンセル時の処理
+         */
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+
+            Log.v("AsyncTaskProgress", "onCancelled()");
+
+            return;
+        }
+
+
+    }
+
 
 }
 //public class BaseballDbHelper extends SQLiteOpenHelper {

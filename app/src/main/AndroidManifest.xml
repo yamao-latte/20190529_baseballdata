@@ -3,6 +3,9 @@
     package="com.example.okuyamatakahiro.a20190529_baseballdata">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -30,7 +33,11 @@
             android:name=".PlayerList"
             android:label="選手一覧" >
         </activity>
-
+        <receiver
+            android:name=".Game_Notify"
+            android:process=":remote" >
+        </receiver>
+        <service android:name=".IntentService_StartingMember"/>
     </application>
 
 </manifest>

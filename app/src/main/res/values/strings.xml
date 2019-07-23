@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">20190529_baseballdata</string>
+    <string name="app_name">プロ野球名鑑</string>
+    <string name="menu_item1">成績を更新する</string>
 </resources>
